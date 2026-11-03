@@ -1,0 +1,224 @@
+Metadata-Version: 2.4
+Name: filecrypt
+Version: 1.0.0
+Summary: Streaming, authenticated AES-256-GCM file encryption with a simple CLI
+Author-email: Goutam Singh <25mcaa22@kristujayanti.com>
+License: MIT
+Project-URL: Homepage, https://github.com/goutamsingh22/file-encryption-tool
+Project-URL: Repository, https://github.com/goutamsingh22/file-encryption-tool
+Project-URL: Issues, https://github.com/goutamsingh22/file-encryption-tool/issues
+Keywords: encryption,aes-gcm,cryptography,files,security,cli
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Topic :: Security :: Cryptography
+Classifier: Topic :: Utilities
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: cryptography>=41.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: build>=1.0; extra == "dev"
+Requires-Dist: black>=24.0; extra == "dev"
+Requires-Dist: ruff>=0.4; extra == "dev"
+Dynamic: license-file
+
+# filecrypt - File Encryption Tool
+
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Cryptography](https://img.shields.io/badge/crypto-AES--256--GCM-informational.svg)](https://cryptography.io/)
+
+A small, dependency-light file encryption tool built on the
+[`cryptography`](https://cryptography.io/) library. It encrypts files with
+**AES-256-GCM** and derives the key from your password with **scrypt**. Files are
+streamed in 1 MiB chunks, so multi-gigabyte files work without loading them into
+memory.
+
+- **Authenticated encryption** - a wrong password or a modified archive is rejected.
+- **Atomic writes** - output is written to a temporary file and renamed only on success.
+- **Streaming** - encrypt and decrypt files larger than available RAM.
+- **Metadata protected** - the stored file name and format fields are authenticated.
+- **Simple CLI and library** - use it from the shell or import it in Python.
+- **No plaintext on failure** - a failed decryption never leaves partial output.
+
+---
+
+## Installation
+
+```bash
+git clone https://github.com/goutamsingh22/file-encryption-tool.git
+cd file-encryption-tool
+
+pip install .
+# or, for development with tests and linters
+pip install -e ".[dev]"
+```
+
+Requires Python 3.9+ and `cryptography>=41.0`.
+
+You can also run it from the source tree without installing:
+
+```bash
+python -m filecrypt encrypt notes.txt
+```
+
+---
+
+## Quick start
+
+```bash
+# Encrypt notes.txt -> notes.txt.fc (you will be prompted for a password)
+filecrypt encrypt notes.txt
+
+# Decrypt notes.txt.fc -> notes.txt
+filecrypt decrypt notes.txt.fc
+
+# Inspect an archive without decrypting it
+filecrypt info notes.txt.fc
+```
+
+Decryption refuses to overwrite an existing file. If the original plaintext is
+still present, choose another output path or pass `--force`:
+
+```bash
+filecrypt decrypt notes.txt.fc restored.txt
+# or
+filecrypt decrypt notes.txt.fc --force
+```
+
+Example:
+
+```text
+$ filecrypt encrypt report.pdf
+New password:
+Confirm password:
+Encrypted report.pdf -> report.pdf.fc
+  1048576 bytes plaintext -> 1048629 bytes archive (AES-256-GCM)
+
+$ filecrypt info report.pdf.fc
+File        : report.pdf.fc
+Format      : filecrypt v1 (AES-256-GCM, scrypt)
+Original    : report.pdf
+Archive size: 1048629 bytes
+Payload     : 1048576 bytes
+```
+
+---
+
+## Commands
+
+### `filecrypt encrypt INPUT [OUTPUT]`
+
+| Option | Description |
+| --- | --- |
+| `-p, --password PASSWORD` | Password on the command line (visible in the process list). |
+| `--password-file PATH` | Read the password from the first line of a file. |
+| `--password-env VAR` | Read the password from an environment variable. |
+| `-f, --force` | Overwrite an existing output file. |
+| `--remove-source` | Delete the plaintext after successful encryption. |
+
+When no password option is given and the terminal is interactive, you are
+prompted twice. If `OUTPUT` is a directory, the archive is created inside it as
+`INPUT.fc`. If `OUTPUT` is omitted, the archive is `INPUT.fc`.
+
+### `filecrypt decrypt INPUT [OUTPUT]`
+
+| Option | Description |
+| --- | --- |
+| `-p, --password PASSWORD` | Password on the command line. |
+| `--password-file PATH` | Read the password from the first line of a file. |
+| `--password-env VAR` | Read the password from an environment variable. |
+| `-f, --force` | Overwrite an existing output file. |
+| `--restore-name` | Use the file name stored inside the archive. |
+| `--remove-source` | Delete the archive after successful decryption. |
+
+If `OUTPUT` is omitted, `INPUT.fc` becomes `INPUT`, and any other name gets a
+`.dec` suffix. Stored names are reduced to a safe basename, so a malicious
+archive cannot write outside the chosen directory.
+
+### `filecrypt info INPUT`
+
+Prints the archive format version, original file name, archive size and payload
+size. It does **not** require the password and does not decrypt anything.
+
+---
+
+## Library usage
+
+```python
+from filecrypt import decrypt_file, encrypt_file, read_header
+
+encrypt_file("notes.txt", "notes.txt.fc", "correct horse battery staple")
+header = read_header("notes.txt.fc")
+print(header.original_name, header.ciphertext_size)
+
+decrypt_file("notes.txt.fc", "notes.txt", "correct horse battery staple")
+```
+
+Errors are reported as `filecrypt.FileCryptError`.
+
+---
+
+## Security design
+
+| Component | Choice |
+| --- | --- |
+| Cipher | AES-256-GCM (authenticated encryption) |
+| Key derivation | scrypt, `N=2^15`, `r=8`, `p=1`, 32-byte key |
+| Salt | 16 random bytes per file |
+| Nonce | 12 random bytes per file |
+| Authentication tag | 16 bytes, verified before output is committed |
+| Associated data | The complete archive header |
+
+Archive layout:
+
+```text
+magic "FCRYPT01" (8) | version (1) | salt (16) | nonce (12)
+| name length (2) | original name (UTF-8) | ciphertext | GCM tag (16)
+```
+
+Because the header is authenticated as associated data, changing the stored file
+name, salt, nonce or version causes decryption to fail. Plaintext is written to a
+temporary file in the destination directory; the tag is verified before that file
+is atomically renamed into place.
+
+### Limitations
+
+- **There is no password recovery.** If you lose the password, the data is gone.
+- File names and file sizes are stored in the header in plaintext. Only the file
+  *contents* are encrypted. If that metadata is sensitive, rename files before
+  encrypting them.
+- The tool protects data at rest. It does not protect against a compromised
+  machine, malware, keyloggers or an attacker who knows the password.
+- Passwords passed with `-p` may be visible to other users through the process
+  list. Prefer the interactive prompt, `--password-env` or `--password-file`.
+- GCM is not nonce-reuse safe. Every archive uses a fresh random salt and nonce,
+  and each nonce is used for exactly one message.
+
+---
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+python -m pytest -q
+ruff check .
+```
+
+The test suite covers round trips, large streaming files, wrong passwords,
+tampered headers and ciphertext, truncation, atomic overwrite behaviour, Unicode
+file names and every CLI command.
+
+---
+
+## License
+
+MIT - see [LICENSE](LICENSE).

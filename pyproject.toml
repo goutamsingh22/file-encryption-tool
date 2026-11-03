@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "filecrypt"
+version = "1.0.0"
+description = "Streaming, authenticated AES-256-GCM file encryption with a simple CLI"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Goutam Singh", email = "25mcaa22@kristujayanti.com" }]
+keywords = ["encryption", "aes-gcm", "cryptography", "files", "security", "cli"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+dependencies = ["cryptography>=41.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "build>=1.0", "black>=24.0", "ruff>=0.4"]
+
+[project.scripts]
+filecrypt = "filecrypt.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/goutamsingh22/file-encryption-tool"
+Repository = "https://github.com/goutamsingh22/file-encryption-tool"
+Issues = "https://github.com/goutamsingh22/file-encryption-tool/issues"
+
+[tool.setuptools]
+packages = ["filecrypt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
