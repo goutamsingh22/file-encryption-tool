@@ -1,9 +1,5 @@
 # filecrypt - File Encryption Tool
 
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Cryptography](https://img.shields.io/badge/crypto-AES--256--GCM-informational.svg)](https://cryptography.io/)
-
 A small, dependency-light file encryption tool built on the
 [`cryptography`](https://cryptography.io/) library. It encrypts files with
 **AES-256-GCM** and derives the key from your password with **scrypt**. Files are
